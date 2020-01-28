@@ -13,7 +13,7 @@ WHERE
 	
 SELECT 
 	(YEAR(`prekes_gavimai`.`data`)*100 + MONTH(`prekes_gavimai`.`data`)) AS `menuo`
-    , `prekes_tiekejai`.`id_prekes` AS `id_prekes`
+    , `prekes`.`id` AS `id_prekes`
     , `prekes`.`id_grupes` AS `id_prekiu_grupes`
     , `prekes_pardavimai`.`id_rinkos` AS `id_rinkos`
     , SUM(`prekes_gavimai`.`kiekis`) AS `kiekis_gauta`
@@ -38,15 +38,18 @@ GROUP BY (YEAR(`prekes_gavimai`.`data`)*100 + MONTH(`prekes_gavimai`.`data`)), `
 ORDER BY `id_prekes`,`menuo`
 
 	
+
+INSERT INTO `balanso_lentele`(`menuo`,`id_prekes`,`id_prekiu_grupes`,`kiekis_gauta`,`suma_gauta`)
 SELECT 
-	(YEAR(`prekes_gavimai`.`data`)*100 + MONTH(`prekes_gavimai`.`data`)) AS `menuo`
-    , `prekes_tiekejai`.`id_prekes` AS `id_prekes`
+     `ts_periodai`.`period` AS `menuo`
+    , `prekes`.`id` AS `id_prekes`
     , `prekes`.`id_grupes` AS `id_prekiu_grupes`
-    , `prekes_pardavimai`.`id_rinkos` AS `id_rinkos`
     , SUM(`prekes_gavimai`.`kiekis`) AS `kiekis_gauta`
     , SUM(`prekes_gavimai`.`vnt_kaina`*`prekes_gavimai`.`kiekis`) AS `suma_gauta`
 
 FROM 
+	`ts_periodai`
+JOIN									
 	`prekes`
 LEFT JOIN 
 	`prekes_tiekejai` ON( 
@@ -54,30 +57,37 @@ LEFT JOIN
     )    
 LEFT JOIN   
 	`prekes_gavimai` ON( 
-      `prekes_tiekejai`.`barkodas`  = `prekes_gavimai`.`barkodas`
+      		    `prekes_tiekejai`.`barkodas`  = `prekes_gavimai`.`barkodas`
+		AND
+		(YEAR(`prekes_gavimai`.`data`)*100 + MONTH(`prekes_gavimai`.`data`))=`ts_periodai`.`period`
     )
-
-GROUP BY (YEAR(`prekes_gavimai`.`data`)*100 + MONTH(`prekes_gavimai`.`data`)), `prekes`.`id`
+GROUP BY  `ts_periodai`.`period`, `prekes`.`id`
 ORDER BY `id_prekes`,`menuo`
 
-INSERT INTO `balanso_lentele`.`menuo`, `balanso_lentele`.`id_prekes`, `balanso_lentele`.`id_prekiu_grupes`, `balanso_lentele`.`kiekis_gauta`, `balanso_lentele`.`suma_gauta`
-SELECT 
-	(YEAR(`prekes_gavimai`.`data`)*100 + MONTH(`prekes_gavimai`.`data`)) AS `menuo`
-    , `prekes_tiekejai`.`id_prekes` AS `id_prekes`
-    , `prekes`.`id_grupes` AS `id_prekiu_grupes`
-    , SUM(`prekes_gavimai`.`kiekis`) AS `kiekis_gauta`
-    , SUM(`prekes_gavimai`.`vnt_kaina`*`prekes_gavimai`.`kiekis`) AS `suma_gauta`
 
-FROM 
-	`prekes`
+INSERT INTO `balanso_lentele`(`menuo`,`id_prekes`,`id_prekiu_grupes`,`kiekis_parduota`,`suma_parduota`)
+SELECT 
+     `balanso_lentele`.`menuo` AS `menuo`
+    , `balanso_lentele`.`id_prekes` AS `id_prekes`
+    , `balanso_lentele`.`id_prekiu_grupes` AS `id_prekiu_grupes`
+    , SUM(`prekes_pardavimai`.`kiekis`) AS `kiekis_parduota`
+    , SUM(`prekes_pardavimai`.`vnt_kaina`*`prekes_pardavimai`.`kiekis`) AS `suma_parduota`
+FROM `balanso_lentele`
 LEFT JOIN 
 	`prekes_tiekejai` ON( 
-        `prekes_tiekejai`.`id_prekes` = `prekes`.`id`
-    )    
+        `prekes_tiekejai`.`id_prekes` = `balanso_lentele`.`id_prekes`
+    )
 LEFT JOIN   
 	`prekes_gavimai` ON( 
-      `prekes_tiekejai`.`barkodas`  = `prekes_gavimai`.`barkodas`
+      		    `prekes_tiekejai`.`barkodas`  = `prekes_gavimai`.`barkodas`
+		
     )
-
-GROUP BY (YEAR(`prekes_gavimai`.`data`)*100 + MONTH(`prekes_gavimai`.`data`)), `prekes`.`id`
-ORDER BY `id_prekes`,`menuo`
+LEFT JOIN `prekes_pardavimai` ON(
+	   `prekes_gavimai`.`id`=`prekes_pardavimai`.`id_prekes_gavimo`
+	AND
+	  (YEAR(`prekes_pardavimai`.`data`)*100 + MONTH(`prekes_pardavimai`.`data`))=`balanso_lentele`.`menuo`
+	)
+GROUP BY  `balanso_lentele`.`menuo`, `balanso_lentele`.`id_prekes`
+ON DUPLICATE KEY UPDATE 
+	`kiekis_parduota`=VALUES(`kiekis_parduota`)
+	, `suma_parduota`=VALUES(`suma_parduota`)
